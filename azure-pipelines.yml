@@ -1,0 +1,47 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: KeyVaultSecrets  # Variable group for Key Vault
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.11'
+    addToPath: true
+
+- script: |
+    pip install -r requirements.txt
+    pytest -v tests/
+  displayName: 'Install dependencies and run tests'
+
+- task: ArchiveFiles@2
+  inputs:
+    rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+    replaceExistingArchive: true
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: '$(Build.ArtifactStagingDirectory)'
+    artifactName: 'drop'
+    publishLocation: 'Container'
+
+- task: AzureWebApp@1
+  inputs:
+    azureSubscription: 'MyAzureCICDServiceConnection_V1'
+    appName: 'PowerV1'
+    package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+
+- task: AzureKeyVault@2
+  inputs:
+    azureSubscription: 'MyAzureCICDServiceConnection_V1'
+    KeyVaultName: 'mykeyvaultv1'
+  displayName: 'Fetch secrets from Key Vault'
